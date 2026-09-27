@@ -592,12 +592,16 @@ def on_stop(conn, ev, now):
     if not runs:
         return
     run = touch(conn, runs[-1], ev, now)
-    if LIVE["enabled"] and not run["model"] and ev.get("transcript_path"):
+    if LIVE["enabled"] and ev.get("transcript_path"):
+        # The model that answered this turn. Read every time, so a /model switch is picked up for this run
+        # and the next: the PostModelSwitch hook would do it, but Claude Code before ~2.1.26x rejects a
+        # plugin that registers it.
         model = _model_from_transcript(ev["transcript_path"])
         if model:
-            conn.execute("UPDATE runs SET model=? WHERE id=?", (model, run["id"]))
-            conn.execute("UPDATE sessions SET model=COALESCE(model, ?) WHERE session_id=?", (model, ev["session_id"]))
-            run = get_run(conn, run["id"])
+            if model != run["model"]:
+                conn.execute("UPDATE runs SET model=? WHERE id=?", (model, run["id"]))
+                run = get_run(conn, run["id"])
+            conn.execute("UPDATE sessions SET model=? WHERE session_id=?", (model, ev["session_id"]))
     waking = [t for t in (ev.get("background_tasks") or [])
               if isinstance(t, dict) and t.get("type") in F.WAKING_BG_TYPES
               and str(t.get("status") or "running").lower() not in F.BG_DONE_STATUSES]

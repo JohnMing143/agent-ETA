@@ -263,6 +263,24 @@ class LifecycleTests(Base):
         self.ev(61, "PreToolUse", tool_name="Read", tool_input={}, tool_use_id="t2", prompt_id="p10", transcript_path=tp)
         self.assertEqual(self.conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0], 2)
 
+    def test_model_switch_is_read_from_the_transcript(self):
+        path = os.path.join(self.tmp, "switch.jsonl")
+
+        def answer(model):
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(json.dumps({"type": "assistant", "message": {"model": model, "content": []}}) + "\n")
+
+        answer("claude-opus-5")
+        self.ev(0, "UserPromptSubmit", prompt="x", prompt_id="p1", transcript_path=path)
+        self.ev(10, "Stop", prompt_id="p1", transcript_path=path)
+        self.assertEqual(self.run_row()["model"], "claude-opus-5")
+        answer("claude-sonnet-4-6")  # /model sonnet, then the next answer
+        self.ev(20, "UserPromptSubmit", prompt="y", prompt_id="p2", transcript_path=path)
+        self.ev(30, "Stop", prompt_id="p2", transcript_path=path)
+        self.assertEqual(self.run_row()["model"], "claude-sonnet-4-6")
+        self.ev(40, "UserPromptSubmit", prompt="z", prompt_id="p3", transcript_path=path)
+        self.assertEqual(self.run_row()["model"], "claude-sonnet-4-6")  # the next run starts on it
+
     def test_background_agents_keep_run_open(self):
         self.ev(0, "UserPromptSubmit", prompt="research", prompt_id="p1")
         self.ev(20, "Stop", background_tasks=[{"id": "a", "type": "subagent", "status": "running"}])

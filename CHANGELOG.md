@@ -1,5 +1,13 @@
 # 更新记录
 
+## v0.5.3（2026-09-27）
+
+### 兼容较旧的 Claude Code
+
+- 不再注册 `PostModelSwitch` hook：Claude Code 2.1.250 及更早的版本不认识这个事件，会把整个插件的 hooks 配置判为无效（`hooks.PostModelSwitch: Invalid key in record`）。改为每一轮结束时从 transcript 读取实际回答的模型，`/model` 切换同样能在这一轮和下一轮反映出来。
+- CI：清单校验改用 Node 22，同时用最新版和 2.1.200 两个版本的 Claude Code 校验，防止以后再引入只有新版本才认识的配置；actions 升级到基于 Node 24 的版本。
+- 测试 62 → 63 个。
+
 ## v0.5.2（2026-09-25）
 
 ### 更正："可离开"的可靠性

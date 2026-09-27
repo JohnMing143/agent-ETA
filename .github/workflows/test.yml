@@ -20,8 +20,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.experimental == true }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
       - name: unit tests (standard library only, no install step)
@@ -29,11 +29,18 @@ jobs:
         run: python -m unittest discover -s tests -v
 
   manifests:
+    strategy:
+      fail-fast: false
+      matrix:
+        # the newest Claude Code, and an older one: a hook event only newer versions know would make
+        # older ones reject the whole plugin (PostModelSwitch did, before 2.1.26x)
+        claude: ["latest", "2.1.200"]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
-      - run: npx -y @anthropic-ai/claude-code plugin validate . --strict
-      - run: npx -y @anthropic-ai/claude-code plugin validate plugins/agent-eta --strict
+          node-version: 22
+      - run: npx -y @anthropic-ai/claude-code@${{ matrix.claude }} --version
+      - run: npx -y @anthropic-ai/claude-code@${{ matrix.claude }} plugin validate . --strict
+      - run: npx -y @anthropic-ai/claude-code@${{ matrix.claude }} plugin validate plugins/agent-eta --strict

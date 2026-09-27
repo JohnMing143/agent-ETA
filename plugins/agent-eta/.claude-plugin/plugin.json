@@ -1,7 +1,7 @@
 {
   "name": "agent-eta",
   "displayName": "Agent ETA",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Predicts how long Claude will keep working and when it will next need you (time-to-completion + time-to-attention), learned from your own history. Passive hooks only: no model calls, nothing injected into context.",
   "author": {
     "name": "agent-eta"
