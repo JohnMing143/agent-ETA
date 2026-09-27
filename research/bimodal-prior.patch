@@ -1,0 +1,238 @@
+diff -ruN a/plugins/agent-eta/scripts/agent_eta/estimator.py b/plugins/agent-eta/scripts/agent_eta/estimator.py
+--- a/plugins/agent-eta/scripts/agent_eta/estimator.py
++++ b/plugins/agent-eta/scripts/agent_eta/estimator.py
+@@ -40,6 +40,16 @@
+ POOL_RUNS = 400
+ RECENCY_HALF_LIFE_D = 60.0  # default memory; tuning.py picks a shorter one when your recent runs predict better
+ RECAL_M0 = 30.0             # pseudo-points behind "the curve is already calibrated" (see recal_level)
++# Turn lengths are bimodal: quick answers (tens of seconds, whatever the task type) and real work. Across
++# eleven histories (the author's and ten public ones) the share of turns under a minute ran from 9 % to
++# 55 %, median about 25 %. A single log-normal underrates the quick mode, which made one-minute "safe
++# to leave" promises early in a turn fail whenever Claude simply answered quickly.
++QUICK_MED_S = 30.0
++QUICK_SIGMA = 0.8
++QUICK_SHARE = 0.25
++QUICK_MAX_MED_S = 90.0      # the quick mode stays quick
++QUICK_N0 = 10.0             # pseudo-runs behind the built-in share and the quick mode's shape
++EM_ITERS = 12
+ CAL_N0 = 5.0        # pseudo-runs behind the built-in pace (log ratio 0) and spread (SIGMA)
+ CAL_N1 = 5.0        # pseudo-runs behind the overall pace, for each task category
+ CAL_MIN_RUNS = 5    # below this the prior is still "built-in" (shown as such)
+@@ -195,6 +205,23 @@
+     return v[mid] if len(v) % 2 else (v[mid - 1] + v[mid]) / 2.0
+ 
+ 
++def mixture_survival(parts, elapsed=0.0):
++    """P(T - e > t | T > e) for T drawn from a mixture of log-normals [(weight, median, sigma)]. Once
++    the elapsed time is well past a mode, that mode's weight fades out by itself."""
++    parts = [(w, math.log(max(m, 0.5)), s) for w, m, s in parts if w > 0]
++
++    def sf(x):
++        if x <= 0:
++            return 1.0
++        lx = math.log(x)
++        return sum(w * (1.0 - _norm_cdf((lx - mu) / s)) for w, mu, s in parts)
++
++    base = sf(elapsed) if elapsed > 0 else sum(w for w, _, _ in parts)
++    if base < 1e-6:
++        return lognormal_survival(max(elapsed, 1.0) * 0.6, parts[-1][2])
++    return Curve(lambda t: 1.0 if t <= 0 else min(1.0, max(0.0, sf(elapsed + t) / base)))
++
++
+ def lognormal_survival(med, sigma=SIGMA, elapsed=0.0):
+     """P(T - e > t | T > e) for T ~ LogNormal(ln med, sigma)."""
+     mu = math.log(max(med, 0.5))
+@@ -507,15 +534,24 @@
+     return base * EFFORT_MULT.get(state["effort"], 1.0) * (1.0 + min(state["prompt_len"], 4000) / 2000.0)
+ 
+ 
+-NO_CALIBRATION = ({}, 0.0, SIGMA, 0)
++BUILT_IN_QUICK = {"share": {}, "share_all": QUICK_SHARE, "mu": math.log(QUICK_MED_S), "sigma": QUICK_SIGMA}
++NO_CALIBRATION = ({}, 0.0, SIGMA, 0, BUILT_IN_QUICK)
++_CAL_CACHE = {}
++
++
++def _npdf(x, m, s):
++    z = (x - m) / s
++    return math.exp(-0.5 * z * z) / s
+ 
+ 
+ def calibration(pool, state, half_life=RECENCY_HALF_LIFE_D):
+-    """Your pace relative to the built-in prior: (log-ratio per category, overall log-ratio, sigma, runs).
++    """Your pace relative to the built-in prior, as two modes: (task pace per category as a log-ratio to
++    the built-in median, overall task pace, task spread, runs, quick mode).
+ 
+-    Learned from runs that finished before the state's moment, in log space, each part shrunk toward
+-    the built-in value by a few pseudo-runs: the overall pace, a per-category pace (shrunk toward the
+-    overall one) and the spread. Far fewer degrees of freedom than the neighbour curves, so it is
++    Learned from runs that finished before the state's moment, each part shrunk toward the built-in
++    value by a few pseudo-runs: the task pace overall and per category, the task spread, and the quick
++    mode (its share per category, its median and spread, in absolute seconds). A small EM splits the
++    history between the two modes. Far fewer degrees of freedom than the neighbour curves, so it is
+     useful from a handful of runs on. Censored runs are left out (a mild bias toward shorter runs).
+     """
+     as_of = state["as_of"]
+@@ -527,25 +563,70 @@
+         cat = meta["category"] or "other"
+         med = prior_median({"category": cat, "effort": meta["effort"], "prompt_len": meta["prompt_len"] or 0})
+         age_days = max(0.0, (as_of - meta["ended_at"]) / 86400.0)
+-        rows.append((cat, math.log(max(meta["run_active_s"] or 0.0, 1.0) / med), 0.5 ** (age_days / half_life)))
++        rows.append((cat, math.log(max(meta["run_active_s"] or 0.0, 1.0)), math.log(med),
++                     0.5 ** (age_days / half_life)))
+     if not rows:
+         return NO_CALIBRATION
+-    mu = sum(w * r for _, r, w in rows) / (sum(w for _, _, w in rows) + CAL_N0)
+-    by_cat = {}
+-    for cat, r, w in rows:
+-        acc = by_cat.setdefault(cat, [0.0, 0.0])
+-        acc[0] += w * r
+-        acc[1] += w
+-    mu_cat = {c: (sr + CAL_N1 * mu) / (sw + CAL_N1) for c, (sr, sw) in by_cat.items()}
+-    ss = sum(w * (r - mu_cat[c]) ** 2 for c, r, w in rows)
+-    sigma = math.sqrt((ss + CAL_N0 * SIGMA ** 2) / (sum(w for _, _, w in rows) + CAL_N0))
+-    return mu_cat, mu, sigma, len(rows)
++    # the same history at nearly the same moment gives the same answer (replays try several K0 per point)
++    key = (id(pool), len(rows), half_life, round(as_of / 600.0))
++    hit = _CAL_CACHE.get(key)
++    if hit is not None:
++        return hit
++    res = _fit_two_modes(rows)
++    if len(_CAL_CACHE) > 4096:
++        _CAL_CACHE.clear()
++    _CAL_CACHE[key] = res
++    return res
++
++
++def _fit_two_modes(rows):
++    """rows: (category, log duration, log built-in median, weight). MAP-style EM with the built-in values
++    as pseudo-observations, so a history without quick answers keeps a small quick share and a history
++    without long work keeps a task mode near the built-in pace."""
++    q0 = math.log(QUICK_MED_S)
++    qmu, qsd, share_all, share = q0, QUICK_SIGMA, QUICK_SHARE, {}
++    cats = sorted({c for c, _, _, _ in rows})
++    mu, mu_cat, tsd = 0.0, {}, SIGMA
++    for _ in range(EM_ITERS):
++        resp = []
++        for c, y, b, w in rows:
++            pi = share.get(c, share_all)
++            pq = pi * _npdf(y, qmu, qsd)
++            pt = (1.0 - pi) * _npdf(y, b + mu_cat.get(c, mu), tsd)
++            resp.append(pq / (pq + pt) if pq + pt > 0 else 0.0)
++        W = sum(w for _, _, _, w in rows)
++        Wq = sum(r * w for r, (_, _, _, w) in zip(resp, rows))
++        share_all = (Wq + QUICK_N0 * QUICK_SHARE) / (W + QUICK_N0)
++        share = {}
++        for c in cats:
++            sw = sum(w for cc, _, _, w in rows if cc == c)
++            sq = sum(r * w for r, (cc, _, _, w) in zip(resp, rows) if cc == c)
++            share[c] = (sq + CAL_N1 * share_all) / (sw + CAL_N1)
++        qmu = (sum(r * w * y for r, (_, y, _, w) in zip(resp, rows)) + QUICK_N0 * q0) / (Wq + QUICK_N0)
++        qmu = min(qmu, math.log(QUICK_MAX_MED_S))
++        qvar = (sum(r * w * (y - qmu) ** 2 for r, (_, y, _, w) in zip(resp, rows)) + QUICK_N0 * QUICK_SIGMA ** 2) \
++            / (Wq + QUICK_N0)
++        qsd = math.sqrt(qvar)
++        wt = [(1.0 - r) * w for r, (_, _, _, w) in zip(resp, rows)]
++        Wt = sum(wt)
++        mu = sum(x * (y - b) for x, (_, y, b, _) in zip(wt, rows)) / (Wt + CAL_N0)
++        mu_cat = {}
++        for c in cats:
++            sw = sum(x for x, (cc, _, _, _) in zip(wt, rows) if cc == c)
++            sr = sum(x * (y - b) for x, (cc, y, b, _) in zip(wt, rows) if cc == c)
++            mu_cat[c] = (sr + CAL_N1 * mu) / (sw + CAL_N1)
++        ss = sum(x * (y - b - mu_cat[c]) ** 2 for x, (c, y, b, _) in zip(wt, rows))
++        tsd = math.sqrt((ss + CAL_N0 * SIGMA ** 2) / (Wt + CAL_N0))
++    quick = {"share": share, "share_all": share_all, "mu": qmu, "sigma": qsd}
++    return mu_cat, mu, tsd, len(rows), quick
+ 
+ 
+ def prior_survival(state, cal=NO_CALIBRATION):
+-    mu_cat, mu, sigma, _ = cal
++    mu_cat, mu, sigma, _, quick = cal
+     med = prior_median(state) * math.exp(mu_cat.get(state["category"], mu))
+-    S = lognormal_survival(med, sigma, state["active_s"])
++    pi = quick["share"].get(state["category"], quick["share_all"]) if quick else 0.0
++    S = mixture_survival([(pi, math.exp(quick["mu"]), quick["sigma"]), (1.0 - pi, med, sigma)], state["active_s"]) \
++        if pi > 0 else lognormal_survival(med, sigma, state["active_s"])
+     k = PHASE_MULT.get(state["phase"], 1.0) * (1.0 + 0.15 * min(state["n_verify_fail"], 4))
+     return stretch(S, k)
+ 
+diff -ruN a/plugins/agent-eta/tests/test_agent_eta.py b/plugins/agent-eta/tests/test_agent_eta.py
+--- a/plugins/agent-eta/tests/test_agent_eta.py
++++ b/plugins/agent-eta/tests/test_agent_eta.py
+@@ -531,7 +531,7 @@
+         self.ev(t, "UserPromptSubmit", prompt="fix the failing login test", prompt_id="now")
+         state = E.state_from_run(self.conn, self.run_row(), t + 1)
+         pool = E.Pool.load(self.conn, state["as_of"])
+-        mu_cat, mu, sigma, n = E.calibration(pool, state)
++        mu_cat, mu, sigma, n, quick = E.calibration(pool, state)
+         self.assertEqual(n, 20)
+         # shrunk toward the built-in pace, but most of the way to x4 with 20 runs
+         self.assertTrue(3.0 < math.exp(mu_cat["fix"]) < 4.0, math.exp(mu_cat["fix"]))
+@@ -542,6 +542,49 @@
+         built_in = E.quantile(E.prior_survival(state), 0.5)
+         self.assertGreater(est["done_p50"], 2.5 * built_in)
+ 
++    def runs_of(self, durations, t0=1000.0, prompt="fix the failing login test"):
++        t = t0
++        for i, d in enumerate(durations):
++            self.ev(t, "UserPromptSubmit", prompt=prompt, prompt_id="m%d" % i)
++            self.ev(t + d, "Stop")
++            t += d + 60
++        return t
++
++    def test_mixture_survival_forgets_a_mode_once_past_it(self):
++        mix = [(0.3, 20.0, 0.5), (0.7, 300.0, 0.6)]
++        S0 = E.mixture_survival(mix, 0.0)
++        self.assertAlmostEqual(S0(60.0), 0.3 * (1 - E._norm_cdf((math.log(60) - math.log(20)) / 0.5))
++                               + 0.7 * (1 - E._norm_cdf((math.log(60) - math.log(300)) / 0.6)), places=6)
++        self.assertLess(S0(60.0), 0.75)                      # about a third may be over within a minute
++        late = E.mixture_survival(mix, 120.0)                # two minutes in: the quick mode is ruled out
++        task = E.lognormal_survival(300.0, 0.6, 120.0)
++        for t in (30.0, 120.0, 400.0):
++            self.assertAlmostEqual(late(t), task(t), places=2)
++
++    def test_calibration_finds_the_quick_mode(self):
++        rng = __import__("random").Random(3)
++        durs = [rng.lognormvariate(math.log(20), 0.4) if i % 10 < 3 else rng.lognormvariate(math.log(400), 0.4)
++                for i in range(80)]
++        t = self.runs_of(durs)
++        self.ev(t, "UserPromptSubmit", prompt="fix the failing login test", prompt_id="now")
++        state = E.state_from_run(self.conn, self.run_row(), t + 1)
++        mu_cat, mu, sigma, n, quick = E.calibration(E.Pool.load(self.conn, state["as_of"]), state)
++        self.assertEqual(n, 80)
++        self.assertTrue(0.22 < quick["share"]["fix"] < 0.38, quick["share"])
++        self.assertTrue(12 < math.exp(quick["mu"]) < 35, math.exp(quick["mu"]))
++        self.assertLess(sigma, 0.7)                          # the task mode alone is tight
++        # early in a turn a one-minute promise is now priced honestly: ~30 % finish within it
++        early = E.prior_survival(dict(state, active_s=5.0), (mu_cat, mu, sigma, n, quick))
++        self.assertTrue(0.6 < early(60.0) < 0.8, early(60.0))
++
++    def test_no_quick_mode_keeps_a_small_share(self):
++        rng = __import__("random").Random(4)
++        t = self.runs_of([rng.lognormvariate(math.log(400), 0.4) for _ in range(80)])
++        self.ev(t, "UserPromptSubmit", prompt="fix the failing login test", prompt_id="now")
++        state = E.state_from_run(self.conn, self.run_row(), t + 1)
++        quick = E.calibration(E.Pool.load(self.conn, state["as_of"]), state)[4]
++        self.assertLess(quick["share"]["fix"], 0.1)
++
+     def test_short_half_life_follows_recent_pace(self):
+         t = self.slow_runs(10, 4.0)                       # a month ago: slow
+         t = self.slow_runs(10, 0.25, t0=t + 30 * 86400)   # lately: fast
+@@ -720,13 +763,14 @@
+         w = est["window"]
+         self.assertIsNotNone(w, "a feature run with rich history should get a leave window")
+         self.assertEqual(w["expires_at"], t0 + 5 + w["horizon_s"])
+-        _, est2, _ = live.compute(self.conn, self.run_row(), t0 + 65, cfg)
++        mid = t0 + 5 + w["horizon_s"] / 2.0
++        _, est2, _ = live.compute(self.conn, self.run_row(), mid, cfg)
+         self.assertEqual(est2["window"]["id"], w["id"])            # same window, not re-issued
+         self.assertEqual(est2["window"]["expires_at"], w["expires_at"])  # never pushed later
+         # Claude asks a question inside the window: revoked on screen, but scored as a breach
+-        self.ev(t0 + 70, "PreToolUse", tool_name="AskUserQuestion", tool_input={}, tool_use_id="q",
++        self.ev(mid + 5, "PreToolUse", tool_name="AskUserQuestion", tool_input={}, tool_use_id="q",
+                 cwd="/work/web")
+-        state3, est3, _ = live.compute(self.conn, self.run_row(), t0 + 71, cfg)
++        state3, est3, _ = live.compute(self.conn, self.run_row(), mid + 6, cfg)
+         self.assertIsNone(est3["window"])
+         row = self.conn.execute("SELECT revoked_at, revoke_reason FROM windows WHERE id=?", (w["id"],)).fetchone()
+         self.assertEqual(row["revoke_reason"], "attention")

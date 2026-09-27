@@ -1,0 +1,6 @@
+{
+  "me": {"home": "/path/to/your/.claude/agent-eta", "transcripts": "/path/to/your/.claude/projects/*/*.jsonl", "kind": "real"},
+  "public_a": {"home": "/work/users/public_a/home", "transcripts": "/work/users/public_a/projects/x/*.jsonl", "kind": "real"},
+  "fable5": {"home": "/work/models/fable5/home", "transcripts": "/work/models/fable5/raw/*.jsonl", "kind": "real"},
+  "kimi": {"home": "/work/models/kimi/home", "transcripts": "/work/models/kimi/raw/*.jsonl", "kind": "automated"}
+}

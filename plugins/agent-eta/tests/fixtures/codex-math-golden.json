@@ -1,0 +1,290 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "absolute_tolerance": 1e-09,
+  "description": "Arithmetic reference values, not empirical estimates of Codex durations.",
+  "kaplan_meier": [
+    {
+      "id": "KM01-event-censor-mixture",
+      "samples": [
+        {
+          "remaining_seconds": 60,
+          "observed": true,
+          "weight": 1
+        },
+        {
+          "remaining_seconds": 120,
+          "observed": false,
+          "weight": 1
+        },
+        {
+          "remaining_seconds": 180,
+          "observed": true,
+          "weight": 1
+        },
+        {
+          "remaining_seconds": 240,
+          "observed": true,
+          "weight": 1
+        }
+      ],
+      "survival_at": {
+        "0": 1,
+        "60": 0.75,
+        "120": 0.75,
+        "180": 0.375,
+        "240": 0
+      },
+      "quantiles": {
+        "0.5": 180,
+        "0.8": 240
+      },
+      "conditional_on_surviving_seconds": 90,
+      "conditional_remaining_quantiles": {
+        "0.5": 90,
+        "0.8": 150
+      }
+    },
+    {
+      "id": "KM02-unidentified-tail",
+      "samples": [
+        {
+          "remaining_seconds": 60,
+          "observed": true,
+          "weight": 1
+        },
+        {
+          "remaining_seconds": 120,
+          "observed": false,
+          "weight": 1
+        }
+      ],
+      "survival_at": {
+        "0": 1,
+        "60": 0.5,
+        "120": 0.5,
+        "180": null
+      },
+      "quantiles": {
+        "0.5": 60,
+        "0.8": null
+      },
+      "tail_policy": "Do not extrapolate beyond last observed support; missing quantiles stay null."
+    },
+    {
+      "id": "KM03-event-censor-tie",
+      "samples": [
+        {
+          "remaining_seconds": 60,
+          "observed": true,
+          "weight": 1
+        },
+        {
+          "remaining_seconds": 60,
+          "observed": false,
+          "weight": 1
+        },
+        {
+          "remaining_seconds": 120,
+          "observed": true,
+          "weight": 1
+        }
+      ],
+      "survival_at": {
+        "60": 0.6666666666666666,
+        "120": 0
+      },
+      "quantiles": {
+        "0.5": 120,
+        "0.8": 120
+      }
+    },
+    {
+      "id": "KM04-weighted",
+      "samples": [
+        {
+          "remaining_seconds": 30,
+          "observed": true,
+          "weight": 2
+        },
+        {
+          "remaining_seconds": 60,
+          "observed": false,
+          "weight": 1
+        },
+        {
+          "remaining_seconds": 90,
+          "observed": true,
+          "weight": 1
+        }
+      ],
+      "survival_at": {
+        "30": 0.5,
+        "60": 0.5,
+        "90": 0
+      },
+      "quantiles": {
+        "0.5": 30,
+        "0.8": 90
+      }
+    },
+    {
+      "id": "KM05-all-censored",
+      "samples": [
+        {
+          "remaining_seconds": 60,
+          "observed": false,
+          "weight": 1
+        },
+        {
+          "remaining_seconds": 120,
+          "observed": false,
+          "weight": 1
+        }
+      ],
+      "survival_at": {
+        "60": 1,
+        "120": 1,
+        "180": null
+      },
+      "quantiles": {
+        "0.5": null,
+        "0.8": null
+      },
+      "production_eligible": false
+    }
+  ],
+  "ema": [
+    {
+      "id": "EMA01",
+      "alpha": 0.3,
+      "intervals_seconds": [
+        60,
+        120,
+        60
+      ],
+      "expected_states": [
+        60,
+        78,
+        72.6
+      ],
+      "remaining_steps": 2,
+      "expected_eta_seconds": 145.2
+    }
+  ],
+  "effective_sample_size": [
+    {
+      "id": "ESS01",
+      "weights": [
+        1,
+        0.5,
+        0.5
+      ],
+      "expected": 2.6666666666666665
+    }
+  ],
+  "clopper_pearson": [
+    {
+      "id": "CP01",
+      "n": 100,
+      "violations": 0,
+      "alpha": 0.016666666666666666,
+      "expected_upper": 0.040116585977996166,
+      "passes_numeric_gate": true
+    },
+    {
+      "id": "CP02",
+      "n": 60,
+      "violations": 0,
+      "alpha": 0.016666666666666666,
+      "expected_upper": 0.06596285901656829,
+      "passes_numeric_gate": false
+    },
+    {
+      "id": "CP03",
+      "n": 100,
+      "violations": 1,
+      "alpha": 0.016666666666666666,
+      "expected_upper": 0.05896557573147597,
+      "passes_numeric_gate": false
+    },
+    {
+      "id": "CP04",
+      "n": 200,
+      "violations": 1,
+      "alpha": 0.016666666666666666,
+      "expected_upper": 0.029855987327711733,
+      "passes_numeric_gate": true
+    },
+    {
+      "id": "CP05",
+      "n": 100,
+      "violations": 100,
+      "alpha": 0.016666666666666666,
+      "expected_upper": 1.0,
+      "passes_numeric_gate": false
+    }
+  ],
+  "policy": [
+    {
+      "id": "POL01-no-certificate",
+      "probabilities": {
+        "120": 0.01,
+        "300": 0.02,
+        "900": 0.03
+      },
+      "certificate": null,
+      "expected_window_seconds": null
+    },
+    {
+      "id": "POL02-test-certificate-only",
+      "probabilities": {
+        "120": 0.01,
+        "300": 0.03,
+        "900": 0.08
+      },
+      "certificate": "INJECTED_VALID_TEST_DOUBLE",
+      "telemetry": "healthy",
+      "attention": "none",
+      "other_gates": true,
+      "expected_window_seconds": 300,
+      "production_certificate": false
+    },
+    {
+      "id": "POL03-active-attention",
+      "probabilities": {
+        "120": 0.01,
+        "300": 0.03,
+        "900": 0.08
+      },
+      "certificate": "INJECTED_VALID_TEST_DOUBLE",
+      "telemetry": "healthy",
+      "attention": "signaled",
+      "other_gates": true,
+      "expected_window_seconds": null,
+      "production_certificate": false
+    },
+    {
+      "id": "POL04-event-only",
+      "probabilities": {
+        "120": 0.01,
+        "300": 0.03,
+        "900": 0.08
+      },
+      "certificate": "INJECTED_VALID_TEST_DOUBLE",
+      "telemetry": "event_only",
+      "attention": "none",
+      "other_gates": true,
+      "expected_window_seconds": null,
+      "production_certificate": false
+    },
+    {
+      "id": "POL05-fixed-expiry",
+      "issued_at_ms": 1789948800000,
+      "horizon_seconds": 300,
+      "refresh_at_ms": 1789948860000,
+      "expected_expires_at_ms": 1789949100000,
+      "expected_seconds_until_expiry": 240
+    }
+  ]
+}

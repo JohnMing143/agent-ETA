@@ -1,0 +1,15 @@
+{
+  "name": "agent-eta",
+  "description": "Agent ETA: time-to-completion and time-to-attention for Claude Code, and what we learned building it.",
+  "owner": {
+    "name": "JohnMing143"
+  },
+  "plugins": [
+    {
+      "name": "agent-eta",
+      "source": "./plugins/agent-eta",
+      "description": "Predicts how long Claude will keep working and when it will next need you (time-to-completion + time-to-attention), learned from your own history. Passive hooks only: no model calls, nothing injected into context.",
+      "version": "0.5.2"
+    }
+  ]
+}

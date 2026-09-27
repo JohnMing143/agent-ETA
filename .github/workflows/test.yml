@@ -1,0 +1,39 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04]
+        python: ["3.8", "3.10", "3.12", "3.13"]
+        include:
+          - os: macos-latest
+            python: "3.12"
+          - os: windows-latest
+            python: "3.12"
+            experimental: true   # not yet verified on Windows; see docs/plugin.md "Known limitations"
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental == true }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: unit tests (standard library only, no install step)
+        working-directory: plugins/agent-eta
+        run: python -m unittest discover -s tests -v
+
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npx -y @anthropic-ai/claude-code plugin validate . --strict
+      - run: npx -y @anthropic-ai/claude-code plugin validate plugins/agent-eta --strict
