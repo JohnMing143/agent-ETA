@@ -10,10 +10,11 @@ for path in sorted(glob.glob(os.path.join(HERE, "batches", "*.txt"))):
         continue
     for attempt in (1, 2):
         t0 = time.time()
-        p = subprocess.run(["claude", "-p", "--model", "haiku", "--tools", "", "--no-session-persistence",
-                            "--output-format", "json", "--system-prompt",
-                            "You are a precise estimator. Reply with only the requested JSON."],
-                           stdin=open(path), capture_output=True, text=True, env=env, timeout=600)
+        with open(path, encoding="utf-8") as batch:
+            p = subprocess.run(["claude", "-p", "--model", "haiku", "--tools", "", "--no-session-persistence",
+                                "--output-format", "json", "--system-prompt",
+                                "You are a precise estimator. Reply with only the requested JSON."],
+                               stdin=batch, capture_output=True, text=True, env=env, timeout=600)
         try:
             d = json.loads(p.stdout)
             cost += d.get("total_cost_usd") or 0

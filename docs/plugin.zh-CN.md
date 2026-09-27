@@ -167,6 +167,6 @@ rm -rf ~/.claude/agent-eta                   # 如果要连历史数据一起删
 
 ```bash
 cd plugins/agent-eta
-python3 -m unittest discover -s tests        # 62 个测试：模拟数据校准、先验校准与自动调参、Codex 数学期望值、16 个 Codex 场景、隐私
+python3 -m unittest discover -s tests        # 63 个测试：模拟数据校准、先验校准与自动调参、Codex 数学期望值、16 个 Codex 场景、隐私
 claude plugin validate . --strict
 ```

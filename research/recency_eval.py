@@ -1,9 +1,11 @@
 """Drift check: does weighting recent runs more (shorter recency half-life) help?"""
-import math, random, sys, time
+import math, os, random, sys, time
 sys.path.insert(0, os.environ.get("PLUGIN") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "plugins", "agent-eta", "scripts"))
 from agent_eta import estimator as E, store, tuning
 rng = random.Random(3)
 conn = store.connect(create=False)
+if conn is None:
+    sys.exit("no eta.db found: point AGENT_ETA_HOME (or the HOME argument) at an imported history, see research/README.md")
 FULL = E.Pool.load(conn, time.time() + 1, limit=100000)
 EMPTY = E.Pool()
 RUNS = [r for r in conn.execute("SELECT * FROM runs WHERE ended_at IS NOT NULL AND active_s IS NOT NULL ORDER BY started_at").fetchall() if r["id"] in FULL.runs]
@@ -16,6 +18,8 @@ for r in RUNS:
                     "done": None if s["censored"] else s["rem_done_s"], "attn": s["rem_attn_s"] if s["attn_event"] else None})
 def summ(e): return {"p50": e["done_p50"], "p80": e["done_p80"], "a20": e["attn_p20"]}
 prior = [summ(E.estimate(conn, p["state"], pool=EMPTY, with_permission=False, k0=math.inf, safe_k=6.0)) for p in pts]
+if len(RUNS) < 25:
+    sys.exit("recency_eval needs at least 25 finished runs; this history has %d" % len(RUNS))
 cut = sorted(r["started_at"] for r in RUNS)[-20]
 def skill(sel, ests):
     per = {}

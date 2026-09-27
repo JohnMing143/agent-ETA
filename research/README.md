@@ -20,6 +20,11 @@ The experiments behind the [write-up](../README.md). They analyse histories impo
 2. Copy `histories.example.json` to `histories.json` and list the homes (and, for the start-of-task
    experiments, the transcript globs). Scripts that take homes as arguments do not need it.
 
+Scripts listed without `HOME` read the history from `AGENT_ETA_HOME`; the rest take history directories
+as arguments. `learning_eval.py` needs at least 30 finished runs and `recency_eval.py` at least 25.
+Everything these scripts write (batches with prompt text, judgments, databases) is ignored by
+`.gitignore` — keep it that way.
+
 The scripts find the plugin relative to this directory; set `PLUGIN=<scripts dir>` to test another
 version (e.g. with `bimodal-prior.patch` applied). Output labels are partly in Chinese.
 
@@ -27,7 +32,7 @@ version (e.g. with `bimodal-prior.patch` applied). Output labels are partly in C
 
 | Script | Question | Finding in the write-up |
 |---|---|---|
-| `learning_eval.py HOME` | Does learning pay off? prequential / fixed exam / exchangeable learning curves | §4.4 |
+| `learning_eval.py HOME [OUT.json]` (≥ 30 finished runs) | Does learning pay off? prequential / fixed exam / exchangeable learning curves | §4.4 |
 | `recal_eval.py`, `recency_eval.py` | PIT quantile recalibration; recency half-life | §4.4 |
 | `signals_eval.py` | Remaining time after "what just happened" (tests passed, git push, …) | a built-in "tests passed → nearly done" rule was wrong on the author's data |
 | `aci_eval.py`, `aci_multi.py HOME…`, `leave_multi.py HOME…` | Adaptive conformal inference and selective risk control for leave windows | §5 |

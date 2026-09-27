@@ -8,6 +8,13 @@ import sys
 sys.path.insert(0, os.environ.get("PLUGIN") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "plugins", "agent-eta", "scripts"))
 from agent_eta import estimator as E, store, tuning  # noqa: E402
 
+
+def history_name(home):
+    """A label for a history directory: the parent's name for .../<name>/home, else its own name."""
+    p = os.path.abspath(home.rstrip("/"))
+    base = os.path.basename(p)
+    return os.path.basename(os.path.dirname(p)) if base == "home" else base
+
 ORIG = E.calibration
 
 
@@ -35,6 +42,8 @@ def cal_model(pool, state, half_life=E.RECENCY_HALF_LIFE_D):
 def run(home):
     os.environ["AGENT_ETA_HOME"] = home
     conn = store.connect(create=False)
+    if conn is None:
+        sys.exit("no eta.db found: point AGENT_ETA_HOME (or the HOME argument) at an imported history, see research/README.md")
     cfg = tuning.current_config(conn)
     out = {}
     for name, fn in (("base", ORIG), ("model", cal_model)):
@@ -64,7 +73,7 @@ def run(home):
 if __name__ == "__main__":
     for home in sys.argv[1:]:
         res, models = run(home)
-        print("-- %s  模型：%s" % (home.split("/")[-2], ", ".join("%s×%d" % (str(m).split("-2026")[0].replace("claude-", ""), n) for m, n in models)))
+        print("-- %s  模型：%s" % (history_name(home), ", ".join("%s×%d" % (str(m).split("-2026")[0].replace("claude-", ""), n) for m, n in models)))
         for c, gv, lo, hi, n in res:
             print("   %-22s 加上按模型的节奏：%+.1f%%  [95%% %+.1f%%, %+.1f%%]（%d 次运行）" % (
                 "K0=%s 半衰期 %g 天" % ("∞" if math.isinf(c[0]) else "%g" % c[0], c[1]), 100 * gv, 100 * lo, 100 * hi, n))

@@ -8,6 +8,13 @@ import sys
 sys.path.insert(0, os.environ.get("PLUGIN") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "plugins", "agent-eta", "scripts"))
 from agent_eta import estimator as E, render, store, tuning  # noqa: E402
 
+
+def history_name(home):
+    """A label for a history directory: the parent's name for .../<name>/home, else its own name."""
+    p = os.path.abspath(home.rstrip("/"))
+    base = os.path.basename(p)
+    return os.path.basename(os.path.dirname(p)) if base == "home" else base
+
 LEVELS = (0.1, 0.2, 0.3, 0.4, 0.5)
 tot = {q: [0, 0, 0.0, 0] for q in LEVELS}
 free = []
@@ -15,6 +22,8 @@ print("%-12s %5s  %s" % ("历史", "点数", "   ".join("把握%d%%: 给出率/�
 for home in sys.argv[1:]:
     os.environ["AGENT_ETA_HOME"] = home
     conn = store.connect(create=False)
+    if conn is None:
+        sys.exit("no eta.db found: point AGENT_ETA_HOME (or the HOME argument) at an imported history, see research/README.md")
     cfg = tuning.current_config(conn)
     tuned = E.tuned_values(conn)
     recal = E.tuned_recal(conn) if tuned.get("recal") else None
@@ -39,7 +48,7 @@ for home in sys.argv[1:]:
         t[2] += sum(lens)
         t[3] += len(pts)
     free += [p["attn"] / 60.0 for p in pts]
-    name = home.rstrip("/").split("/")[-2]
+    name = history_name(home)
     print("%-12s %5d  %s" % (name[:12], len(pts), "   ".join(cells)), flush=True)
 print("\n合计：")
 for q in LEVELS:

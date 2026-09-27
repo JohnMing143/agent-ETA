@@ -110,7 +110,7 @@ Claude Code ──hooks(18 个事件)──► eta.py hook ──► ingest.py �
 
 ## 7. 验证
 
-**单元测试共 62 个**，在 Python 3.8 和 3.13 上都跑过（Docker 官方镜像）。
+**单元测试共 63 个**，在 Python 3.8 和 3.13 上都跑过（Docker 官方镜像）。
 
 - 覆盖的场景包括：生命周期、授权等待的扣除、中断删失、晚到的 async 事件、Stop-hook 续跑、Claude Code 轮后辅助 agent 不会重开已结束的一轮、后台唤醒、`!` 命令的回应单独成轮（实时和导入）、transcript 导入、setup 保留并恢复原有状态栏、拒绝覆盖无法解析的 settings.json。
 - 有一个基于模拟数据的**校准检验**，断言 P50/P80 的命中率落在合理范围内，并且学习版的误差不高于只用先验。
@@ -230,7 +230,7 @@ Claude Code ──hooks(18 个事件)──► eta.py hook ──► ingest.py �
 ## 9. 路线图
 
 1. **通知。** 在"需要你"那一刻推送到手机（ntfy、Bark 等），与"可离开到 14:52"配成一对。
-2. **Codex 适配器。** 按 Codex 交接包的事件契约（`event.schema.json`）把 Codex 的 hooks 和 notify 映射到同一套 ingest，这样一个估计器可以同时服务两个 agent（讨论里的原始目标）。对照见 [CODEX_COMPARISON.md](CODEX_COMPARISON.md)。
+2. **Codex 适配器。** 按 Codex 交接包的事件契约（`event.schema.json`）把 Codex 的 hooks 和 notify 映射到同一套 ingest，这样一个估计器可以同时服务两个 agent（讨论里的原始目标）。对照见 [CODEX_COMPARISON.zh-CN.md](CODEX_COMPARISON.zh-CN.md)。
 3. **数据保留期**（参照 Codex 设计：事件 30 天，衍生数据 90 天），以及路径 HMAC 的可选模式。
 4. **更多特征。** token 速率（statusLine 的 `context_window`）、diff 大小、prompt 的语义嵌入（仍然在本地计算）。
 5. **数据量大了之后（例如超过 500 次运行），换成分位数回归或生存森林，与现在的 kNN-KM 做 A/B 回测，按回测结果决定是否切换。**

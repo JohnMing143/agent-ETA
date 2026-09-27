@@ -10,10 +10,19 @@ import sys
 sys.path.insert(0, os.environ.get("PLUGIN") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "plugins", "agent-eta", "scripts"))
 from agent_eta import estimator as E, render, store, tuning  # noqa: E402
 
+
+def history_name(home):
+    """A label for a history directory: the parent's name for .../<name>/home, else its own name."""
+    p = os.path.abspath(home.rstrip("/"))
+    base = os.path.basename(p)
+    return os.path.basename(os.path.dirname(p)) if base == "home" else base
+
 TOT = {k: [0, 0, 0.0] for k in ("now", "F1", "F1+F2")}
 for home in sys.argv[1:]:
     os.environ["AGENT_ETA_HOME"] = home
     conn = store.connect(create=False)
+    if conn is None:
+        sys.exit("no eta.db found: point AGENT_ETA_HOME (or the HOME argument) at an imported history, see research/README.md")
     cfg = tuning.current_config(conn)
     tuned = E.tuned_values(conn)
     k = tuned.get("safe_k", 6.0)
@@ -58,7 +67,7 @@ for home in sys.argv[1:]:
                 res[key][0] += 1
                 res[key][1] += p["attn"] < bk
                 res[key][2] += bk / 60.0
-    name = home.rstrip("/").split("/")[-2][:38]
+    name = history_name(home)[:38]
     print("%-38s " % name + "  ".join("%s %3d次 %3.0f%%" % (x, n, 100.0 * b / n if n else 0) for x, (n, b, m) in res.items()),
           flush=True)
     for x in TOT:

@@ -62,7 +62,7 @@ Everything is tuned per user by replaying their own history (see §3). Design de
 
 ## 2. Data
 
-| Source | Agent / models | Turns | Kind |
+| Source | Agent / models | Turns imported | Kind |
 |---|---|---|---|
 | The author's own history | Claude Code, Opus 5 / Opus 5.5 | 68 | real use |
 | [trace-commons/agent-traces](https://huggingface.co/datasets/trace-commons/agent-traces), 5 contributors ("A"–"E") | Sonnet 4.6, Opus 4.8 | 337 (267 / 34 / 15 / 11 / 10) | real use, donated |
@@ -73,7 +73,8 @@ Everything is tuned per user by replaying their own history (see §3). Design de
 | [armand0e/minimax-m3-claude-code-traces](https://huggingface.co/datasets/armand0e/minimax-m3-claude-code-traces) | MiniMax M3 in Claude Code | 64 | automated |
 | [choucsan/mimo-claude-code-traces-1k](https://huggingface.co/datasets/choucsan/mimo-claude-code-traces-1k) | MiMo V2.5 Pro | 974 | automated few-second tasks |
 
-All are native Claude Code transcript JSONL, imported with the plugin's own importer. Each history was
+All are native Claude Code transcript JSONL, imported with the plugin's own importer. Tables below that
+count only turns that finished normally show slightly smaller numbers (e.g. 113 of Kimi's 116). Each history was
 tuned and evaluated as a separate user. Transcripts do not record permission prompts, so imported
 histories under-count one kind of "needs you" event. No raw session content from any source is
 published here; only aggregate numbers.
@@ -115,8 +116,9 @@ of information available at the start:
 | the agent's own plan (TaskCreate / TodoWrite), when it makes one | ×1.62 on one user (21 tasks), worse on another | 0.77 / 0.18 |
 
 The request's text alone does not carry the information: "fix this bug" can be one minute or thirty
-depending on what the agent finds. The only signal that clearly broke through was the agent's own plan
-after it had looked at the code — and most agents in our data almost never make one.
+depending on what the agent finds. The only signal that did clearly better was the agent's own plan after
+it had looked at the code — but that rests on one user's 21 tasks (on another dataset plans did worse),
+and most agents in our data almost never make one.
 
 ### 4.2 The agent hands control back at a nearly constant rate
 

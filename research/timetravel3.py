@@ -80,6 +80,8 @@ def simulate(conn, pool, runs, marks, policy):
 def main(home):
     os.environ["AGENT_ETA_HOME"] = home
     conn = store.connect(create=False)
+    if conn is None:
+        sys.exit("no eta.db found: point AGENT_ETA_HOME (or the HOME argument) at an imported history, see research/README.md")
     pool = E.Pool.load(conn, 1e12, limit=100000)
     runs = [r for r in conn.execute("SELECT * FROM runs WHERE ended_at IS NOT NULL AND active_s IS NOT NULL"
                                     " ORDER BY ended_at").fetchall() if r["id"] in pool.runs]

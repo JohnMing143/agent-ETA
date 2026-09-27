@@ -9,6 +9,10 @@ sys.path.insert(0, os.environ.get("PLUGIN") or os.path.join(os.path.dirname(os.p
 from agent_eta import estimator as E, render, store, tuning  # noqa: E402
 
 conn = store.connect(create=False)
+
+if conn is None:
+
+    sys.exit("no eta.db found: point AGENT_ETA_HOME (or the HOME argument) at an imported history, see research/README.md")
 cfg = tuning.current_config(conn)
 pts = tuning.replay(conn, max_runs=500, configs=[cfg], safe_q=0.2, keep=True, pool_limit=100000)
 pts = [p for p in pts if p["attn"] is not None]

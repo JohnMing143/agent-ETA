@@ -27,6 +27,8 @@ AIM = float(os.environ.get("AIM", "0.2"))  # ACI's internal target
 def load(home):
     os.environ["AGENT_ETA_HOME"] = home
     conn = store.connect(create=False)
+    if conn is None:
+        sys.exit("no eta.db found: point AGENT_ETA_HOME (or the HOME argument) at an imported history, see research/README.md")
     cfg = tuning.current_config(conn)
     tuned = E.tuned_values(conn)
     pts = tuning.replay(conn, max_runs=100000, configs=[cfg], safe_q=ALPHA, keep=True, pool_limit=100000)

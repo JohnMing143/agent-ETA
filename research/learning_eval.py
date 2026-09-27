@@ -28,11 +28,17 @@ PER_RUN = 6
 SAFE_Q, SAFE_K = 0.2, 6.0
 rng = random.Random(20260925)
 
+if len(sys.argv) > 1:
+    os.environ["AGENT_ETA_HOME"] = sys.argv[1]
 conn = store.connect(create=False)
+if conn is None:
+    sys.exit("no eta.db found: point AGENT_ETA_HOME (or the HOME argument) at an imported history, see research/README.md")
 FULL = E.Pool.load(conn, time.time() + 1, limit=100000)
 RUNS = [r for r in conn.execute("SELECT * FROM runs WHERE ended_at IS NOT NULL AND active_s IS NOT NULL"
                                 " ORDER BY started_at").fetchall() if r["id"] in FULL.runs]
 BY_ID = {r["id"]: r for r in RUNS}
+if len(RUNS) < 30:
+    sys.exit("learning_eval needs at least 30 finished runs; this history has %d" % len(RUNS))
 
 
 def points_of(run):
@@ -150,7 +156,10 @@ RESULT["E1"] = []
 for lo, hi in buckets:
     idx = [i for i, h in enumerate(hist) if lo <= h < hi]
     sel = {k: [v[i] for i in idx] for k, v in rows.items()}
-    d = cluster_boot(diff_by_run(sel["full"], sel["prior"]))
+    pairs = diff_by_run(sel["full"], sel["prior"])
+    if len(pairs) < 3:
+        continue  # a history too short to reach this bracket
+    d = cluster_boot(pairs)
     base = metrics(sel["prior"])["loss"]
     runs_in = len({rows["prior"][i][0]["run"] for i in idx})
     line = {"hist": [lo, hi], "runs": runs_in, "prior": metrics(sel["prior"]), "cal": metrics(sel["cal"]),
@@ -175,7 +184,7 @@ print("\n== E2 固定测试集：最近 %d 次运行；历史从它们之前的 
 test_pts = [pt for r in TEST for pt in PTS[r["id"]]]
 prior_rows = [(pt, prior_of(pt)) for pt in test_pts]
 RESULT["E2"] = []
-grid = [0, 5, 10, 15, 20, 30, len(TRAIN)]
+grid = sorted({n for n in (0, 5, 10, 15, 20, 30) if n < len(TRAIN)} | {len(TRAIN)})
 for n in grid:
     draws = 1 if n in (0, len(TRAIN)) else 30
     per_draw = {50.0: [], INF: []}
@@ -210,7 +219,7 @@ print("  (%.0fs)" % (time.time() - t0))
 AS_OF = max(r["ended_at"] for r in RUNS) + 1.0
 K0S = (8.0, 20.0, 50.0, INF)
 all_ids = [r["id"] for r in RUNS]
-grid3 = [0, 5, 10, 20, 30, 40, 50, len(RUNS) - 1]
+grid3 = sorted({n for n in (0, 5, 10, 20, 30, 40, 50) if n < len(RUNS) - 1} | {len(RUNS) - 1})
 DRAWS3 = 6
 print("\n== E3 可交换学习曲线：每次运行轮流当测试，历史 = 其余运行里随机 n 次（每个 n 抽 %d 次）" % DRAWS3)
 prior3 = {}
@@ -246,5 +255,5 @@ for n in grid3:
                                       for k in K0S) + "   最优 K0=%s" % ("∞" if best == INF else "%g" % best))
 print("  (%.0fs)" % (time.time() - t0))
 
-with open(sys.argv[1] if len(sys.argv) > 1 else "result.json", "w") as f:
+with open(sys.argv[2] if len(sys.argv) > 2 else "learning_eval.json", "w") as f:
     json.dump(RESULT, f, default=lambda o: None if isinstance(o, float) and math.isinf(o) else str(o))

@@ -10,6 +10,13 @@ import sys
 sys.path.insert(0, os.environ.get("PLUGIN") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "plugins", "agent-eta", "scripts"))
 from agent_eta import estimator as E, render, store, tuning  # noqa: E402
 
+
+def history_name(home):
+    """A label for a history directory: the parent's name for .../<name>/home, else its own name."""
+    p = os.path.abspath(home.rstrip("/"))
+    base = os.path.basename(p)
+    return os.path.basename(os.path.dirname(p)) if base == "home" else base
+
 ALPHA, PER_RUN = 0.2, 6
 
 
@@ -35,6 +42,8 @@ def truncated(src, T, prev, windows):
 def main(out_dir, home):
     os.environ["AGENT_ETA_HOME"] = home
     conn = store.connect(create=False)
+    if conn is None:
+        sys.exit("no eta.db found: point AGENT_ETA_HOME (or the HOME argument) at an imported history, see research/README.md")
     pool = E.Pool.load(conn, 1e12, limit=100000)
     empty = E.Pool()
     runs = [r for r in conn.execute("SELECT * FROM runs WHERE ended_at IS NOT NULL AND active_s IS NOT NULL"
@@ -79,7 +88,7 @@ def main(out_dir, home):
                          "breach": (pt["attn"] < b) if b else None,
                          "hit50": (pt["done"] <= est["done_p50"]) if pt["done"] is not None and est["done_p50"] else None,
                          "cov80": (pt["done"] <= est["done_p80"]) if pt["done"] is not None and est["done_p80"] else None})
-    name = home.rstrip("/").split("/")[-2]
+    name = history_name(home)
     with open(os.path.join(out_dir, name + ".json"), "w") as f:
         json.dump(recs, f)
     prom = [x for x in recs if x["promise"]]

@@ -236,7 +236,7 @@ Development:
 
 ```bash
 cd plugins/agent-eta
-python3 -m unittest discover -s tests        # 49 tests: simulation calibration, tuning, Codex math golden values, 16 Codex scenarios, privacy
+python3 -m unittest discover -s tests        # 63 tests: simulation calibration, tuning, Codex math golden values, 16 Codex scenarios, privacy
 claude plugin validate . --strict
 ```
 

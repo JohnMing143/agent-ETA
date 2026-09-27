@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "models"))
+sys.path.insert(0, HERE)
 import prompts as P  # noqa: E402
 
 BATCH = 40

@@ -8,9 +8,18 @@ import sys
 sys.path.insert(0, os.environ.get("PLUGIN") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "plugins", "agent-eta", "scripts"))
 from agent_eta import estimator as E, render, store, tuning  # noqa: E402
 
+
+def history_name(home):
+    """A label for a history directory: the parent's name for .../<name>/home, else its own name."""
+    p = os.path.abspath(home.rstrip("/"))
+    base = os.path.basename(p)
+    return os.path.basename(os.path.dirname(p)) if base == "home" else base
+
 for home in sys.argv[1:]:
     os.environ["AGENT_ETA_HOME"] = home
     conn = store.connect(create=False)
+    if conn is None:
+        sys.exit("no eta.db found: point AGENT_ETA_HOME (or the HOME argument) at an imported history, see research/README.md")
     cfg = tuning.current_config(conn)
     tuned = E.tuned_values(conn)
     recal = E.tuned_recal(conn) if tuned.get("recal") else None
@@ -29,7 +38,7 @@ for home in sys.argv[1:]:
         cause = "held" if not breach else ("asked" if asked is not None and asked - p["as_of"] < b + 1 else "finished")
         elapsed = run["active_s"] - (p["done"] or 0) if p["done"] is not None else None
         rows.append((cause, b, p["attn"], p["done"], elapsed, run["category"], run["active_s"]))
-    name = home.rstrip("/").split("/")[-2]
+    name = history_name(home)
     if not rows:
         print("-- %s: no promises" % name)
         continue

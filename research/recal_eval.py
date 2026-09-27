@@ -15,6 +15,8 @@ from agent_eta import render, store, tuning  # noqa: E402
 PER_RUN = 6
 rng = random.Random(7)
 conn = store.connect(create=False)
+if conn is None:
+    sys.exit("no eta.db found: point AGENT_ETA_HOME (or the HOME argument) at an imported history, see research/README.md")
 FULL = E.Pool.load(conn, time.time() + 1, limit=100000)
 EMPTY = E.Pool()
 RUNS = [r for r in conn.execute("SELECT * FROM runs WHERE ended_at IS NOT NULL AND active_s IS NOT NULL"

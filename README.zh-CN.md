@@ -26,7 +26,7 @@
 
 ## 2. 数据
 
-| 来源 | 模型 | 轮数 | 性质 |
+| 来源 | 模型 | 导入的轮数 | 性质 |
 |---|---|---|---|
 | 作者本人 | Opus 5 / Opus 5.5 | 68 | 真实使用 |
 | [trace-commons/agent-traces](https://huggingface.co/datasets/trace-commons/agent-traces)，5 位贡献者（A–E） | Sonnet 4.6、Opus 4.8 | 337（267 / 34 / 15 / 11 / 10） | 真实使用，捐赠 |
@@ -37,7 +37,7 @@
 | [armand0e/minimax-m3-claude-code-traces](https://huggingface.co/datasets/armand0e/minimax-m3-claude-code-traces) | MiniMax M3（跑在 Claude Code 里） | 64 | 自动生成 |
 | [choucsan/mimo-claude-code-traces-1k](https://huggingface.co/datasets/choucsan/mimo-claude-code-traces-1k) | MiMo V2.5 Pro | 974 | 自动生成的几秒钟小任务 |
 
-都是原生的 Claude Code transcript JSONL，用插件自己的导入器导入，每份历史当作一个独立用户调参和评估。transcript 里没有授权弹窗，所以导入的历史会少算一类“需要你”。本仓库不包含任何来源的原始会话内容，只有汇总后的数字。
+都是原生的 Claude Code transcript JSONL，用插件自己的导入器导入（后面只统计正常结束轮次的表格，数字会略小，如 Kimi 的 116 轮里有 113 轮），每份历史当作一个独立用户调参和评估。transcript 里没有授权弹窗，所以导入的历史会少算一类“需要你”。本仓库不包含任何来源的原始会话内容，只有汇总后的数字。
 
 ## 3. 怎么评估
 
@@ -66,7 +66,7 @@
 | 插件 + 大模型融合 | **×2.29** | – |
 | agent 自己列出的计划（TaskCreate / TodoWrite），如果列了 | 一位用户 ×1.62（21 个任务），另一位更差 | 0.77 / 0.18 |
 
-光看需求文字，信息量不够：“修一下这个 bug”可能一分钟，也可能半小时，取决于 agent 读代码后发现了什么。唯一明显突破的，是 agent 看过代码之后自己列出的计划——而我们数据里的大多数 agent 几乎从不列计划。
+光看需求文字，信息量不够：“修一下这个 bug”可能一分钟，也可能半小时，取决于 agent 读代码后发现了什么。唯一明显更好的，是 agent 看过代码之后自己列出的计划——但这只来自一位用户的 21 个任务（在另一份数据上计划反而更差），而且我们数据里的大多数 agent 几乎从不列计划。
 
 ### 4.2 agent 交还控制权的速率几乎恒定
 

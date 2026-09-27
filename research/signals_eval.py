@@ -11,6 +11,10 @@ sys.path.insert(0, os.environ.get("PLUGIN") or os.path.join(os.path.dirname(os.p
 from agent_eta import estimator as E, store, tuning  # noqa: E402
 
 conn = store.connect(create=False)
+
+if conn is None:
+
+    sys.exit("no eta.db found: point AGENT_ETA_HOME (or the HOME argument) at an imported history, see research/README.md")
 cfg = tuning.current_config(conn)
 recal = E.tuned_recal(conn)
 pool = E.Pool.load(conn, time.time() + 1, limit=100000)
